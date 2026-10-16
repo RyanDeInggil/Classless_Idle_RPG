@@ -9,7 +9,7 @@
  *
  * No Math.random(), Date.now(), localStorage, or DOM access here.
  */
-import { levelCurve as defaultLevelCurve, type LevelCurveConfig } from '../data/levelCurve.js';
+import type { LevelCurveConfig } from '../data/levelCurve.js';
 import { add, mul, pow, round, sub } from './num.js';
 import type { CharacterState, GameState } from './types.js';
 
@@ -27,7 +27,7 @@ function normalizeLevel(level: number): number {
  */
 export function xpToNextLevel(
   level: number,
-  config: LevelCurveConfig = defaultLevelCurve,
+  config: LevelCurveConfig,
 ): number {
   const normLevel = normalizeLevel(level);
 
@@ -48,7 +48,7 @@ export function xpToNextLevel(
 export function awardCharacterXp(
   character: CharacterState,
   xpAmount: number,
-  config: LevelCurveConfig = defaultLevelCurve,
+  config: LevelCurveConfig,
 ): CharacterState {
   if (!Number.isFinite(xpAmount) || xpAmount < 0) {
     throw new RangeError(`awardXp: XP amount must be a finite non-negative number, received ${xpAmount}`);
@@ -93,17 +93,17 @@ export function awardCharacterXp(
 export function awardXp(
   target: GameState,
   xpAmount: number,
-  config?: LevelCurveConfig,
+  config: LevelCurveConfig,
 ): GameState;
 export function awardXp(
   target: CharacterState,
   xpAmount: number,
-  config?: LevelCurveConfig,
+  config: LevelCurveConfig,
 ): CharacterState;
 export function awardXp(
   target: GameState | CharacterState,
   xpAmount: number,
-  config: LevelCurveConfig = defaultLevelCurve,
+  config: LevelCurveConfig,
 ): GameState | CharacterState {
   if ('character' in target) {
     const updatedCharacter = awardCharacterXp(target.character, xpAmount, config);

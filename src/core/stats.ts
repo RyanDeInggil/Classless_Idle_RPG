@@ -11,9 +11,9 @@
  *
  * No Math.random(), Date.now(), localStorage, or DOM access here.
  */
-import { characterStats } from '../data/character.js';
+import type { CharacterStatsData } from '../data/character.js';
 import { clamp, mul, pow, sub } from './num.js';
-import type { GameState } from './types.js';
+import type { GameConfig, GameState } from './types.js';
 
 export interface DerivedStats {
   readonly maxHp: number;
@@ -43,9 +43,12 @@ function normalizeLevel(level: number): number {
  * certainty and critical damage to at least 1× so long play cannot produce
  * degenerate values.
  */
-export function deriveStatsForLevel(level: number): DerivedStats {
+export function deriveStatsForLevel(
+  level: number,
+  characterStatsData: CharacterStatsData,
+): DerivedStats {
   const levelsGained = sub(normalizeLevel(level), 1);
-  const { base, growthPerLevel } = characterStats;
+  const { base, growthPerLevel } = characterStatsData;
 
   return {
     maxHp: mul(base.maxHp, pow(growthPerLevel.maxHp, levelsGained)),
@@ -65,6 +68,6 @@ export function deriveStatsForLevel(level: number): DerivedStats {
 }
 
 /** Derived statistics for a state's character. Recalculated, never saved. */
-export function deriveStats(state: GameState): DerivedStats {
-  return deriveStatsForLevel(state.character.level);
+export function deriveStats(state: GameState, config: GameConfig): DerivedStats {
+  return deriveStatsForLevel(state.character.level, config.character);
 }

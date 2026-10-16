@@ -16,15 +16,12 @@
  * - Uses deriveStats(state) for player stats and core/num.ts for arithmetic.
  * - Enemy and effect data loaded from Content, never hardcoded.
  */
-import {
-  content as defaultContent,
-  type Content,
-} from '../../data/index.js';
+import type { Content } from '../../data/index.js';
 import { awardXp } from '../level.js';
 import { add, clamp, div, mul, round, sub } from '../num.js';
 import { nextBool } from '../rng.js';
 import { deriveStats } from '../stats.js';
-import type { CombatPhase, CombatState, EnemyState, GameState } from '../types.js';
+import type { CombatPhase, CombatState, EnemyState, GameConfig, GameState } from '../types.js';
 import {
   applyEffectToInstances,
   deriveOnHitEffects,
@@ -41,7 +38,7 @@ import {
  */
 export function spawnWaveEnemies(
   waveId: string,
-  contentInstance: Content = defaultContent,
+  contentInstance: Content,
 ): readonly EnemyState[] {
   const wave = contentInstance.waves.get(waveId);
   if (!wave) {
@@ -79,7 +76,7 @@ export function spawnWaveEnemies(
 export function startCombat(
   state: GameState,
   stageId: string,
-  contentInstance: Content = defaultContent,
+  config: GameConfig,
 ): GameState {
   if (state.activeActivity !== null && state.activeActivity !== 'combat') {
     return state;
@@ -88,12 +85,12 @@ export function startCombat(
     return state;
   }
 
-  const stage = contentInstance.stages.get(stageId);
+  const stage = config.content.stages.get(stageId);
   if (!stage) {
     return state;
   }
 
-  const initialEnemies = spawnWaveEnemies(stage.waves[0], contentInstance);
+  const initialEnemies = spawnWaveEnemies(stage.waves[0], config.content);
   const playerHp = state.character.currentHp;
 
   const combat: CombatState = {
@@ -147,13 +144,14 @@ export function onBossPending(state: GameState): GameState {
 export function stepCombat(
   state: GameState,
   dt: number,
-  contentInstance: Content = defaultContent,
+  config: GameConfig,
 ): GameState {
   if (state.activeActivity !== 'combat' || state.combat === null) {
     return state;
   }
 
   const combat = state.combat;
+  const contentInstance = config.content;
 
   // If already defeated or waiting for boss, do not process combat
   if (combat.playerDefeated || combat.bossPending) {
@@ -208,7 +206,7 @@ export function stepCombat(
       // Enemy killed by DoT!
       const enemyDef = contentInstance.enemies.get(enemy.defId);
       if (enemyDef) {
-        currentState = awardXp(currentState, enemyDef.xpReward);
+        currentState = awardXp(currentState, enemyDef.xpReward, config.levelCurve);
       }
       // Dead enemy removed (effects vanish with it)
     } else {
@@ -245,7 +243,7 @@ export function stepCombat(
   playerEffects = playerTickResult.effects;
   let playerLethalDoT = false;
   if (playerTickResult.totalDamage > 0) {
-    const maxHp = deriveStats(currentState).maxHp;
+    const maxHp = deriveStats(currentState, config).maxHp;
     playerHp = clamp(sub(playerHp, playerTickResult.totalDamage), 0, maxHp);
 
     if (playerHp <= 0) {
@@ -269,7 +267,7 @@ export function stepCombat(
     const playerStunned = playerStunnedAtStart || isStunned(playerEffects, contentInstance);
 
     if (!playerStunned) {
-      let playerStats = deriveStats(currentState);
+      let playerStats = deriveStats(currentState, config);
       let playerAttackIntervalMs = round(div(1000, playerStats.attackRate));
       playerTimerMs = add(playerTimerMs, dtMs);
 
@@ -277,7 +275,7 @@ export function stepCombat(
         playerTimerMs = sub(playerTimerMs, playerAttackIntervalMs);
 
         // Derive stats from latest currentState (recalculated in case mid-step kill leveled up player, per D15)
-        playerStats = deriveStats(currentState);
+        playerStats = deriveStats(currentState, config);
         playerAttackIntervalMs = round(div(1000, playerStats.attackRate));
 
         // Roll for crit using seeded RNG
@@ -296,7 +294,7 @@ export function stepCombat(
           // Enemy killed!
           const enemyDef = contentInstance.enemies.get(target.defId);
           if (enemyDef) {
-            currentState = awardXp(currentState, enemyDef.xpReward);
+            currentState = awardXp(currentState, enemyDef.xpReward, config.levelCurve);
           }
           // Remove dead enemy
           currentEnemies = currentEnemies.slice(1);
@@ -386,7 +384,7 @@ export function stepCombat(
           enemyTimerMs = sub(enemyTimerMs, enemyAttackIntervalMs);
 
           // Enemy damages player
-          const maxHp = deriveStats(currentState).maxHp;
+          const maxHp = deriveStats(currentState, config).maxHp;
           playerHp = clamp(sub(playerHp, enemyDef.damage), 0, maxHp);
 
           // Apply enemy on-hit effects to player

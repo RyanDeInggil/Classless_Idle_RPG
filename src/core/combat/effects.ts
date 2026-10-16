@@ -18,7 +18,7 @@
  * - Pure functions, no input mutation, no Math.random(), Date.now(), or DOM.
  * - Effect definitions come from validated Content object, never hardcoded.
  */
-import { content as defaultContent, type Content, type EffectDef } from '../../data/index.js';
+import type { Content, EffectDef } from '../../data/index.js';
 import { add, clamp, mul, round, sub } from '../num.js';
 import type { EffectInstance, GameState } from '../types.js';
 
@@ -31,7 +31,7 @@ import type { EffectInstance, GameState } from '../types.js';
  */
 export function isStunned(
   effects: readonly EffectInstance[],
-  contentInstance: Content = defaultContent,
+  contentInstance: Content,
 ): boolean {
   for (const inst of effects) {
     const def = contentInstance.effects.get(inst.effectId);
@@ -152,7 +152,7 @@ export interface TickEffectsResult {
 export function tickEffectInstances(
   effects: readonly EffectInstance[],
   dt: number,
-  contentInstance: Content = defaultContent,
+  contentInstance: Content,
 ): TickEffectsResult {
   const dtMs = round(mul(dt, 1000));
   const survivingEffects: EffectInstance[] = [];
@@ -216,21 +216,21 @@ export function tickEffectInstances(
 export function tickEffects(
   target: readonly EffectInstance[],
   dt: number,
-  contentInstance?: Content,
+  contentInstance: Content,
 ): TickEffectsResult;
 export function tickEffects<
   T extends { readonly hp: number; readonly effects: readonly EffectInstance[]; readonly maxHp?: number },
 >(
   target: T,
   dt: number,
-  contentInstance?: Content,
+  contentInstance: Content,
 ): T;
 export function tickEffects(
   target:
     | readonly EffectInstance[]
     | { readonly hp: number; readonly effects: readonly EffectInstance[]; readonly maxHp?: number },
   dt: number,
-  contentInstance: Content = defaultContent,
+  contentInstance: Content,
 ): TickEffectsResult | { readonly hp: number; readonly effects: readonly EffectInstance[]; readonly maxHp?: number } {
   if (Array.isArray(target)) {
     return tickEffectInstances(target, dt, contentInstance);
@@ -259,7 +259,7 @@ export function tickEffects(
  */
 export function deriveOnHitEffects(
   _state: GameState,
-  contentInstance: Content = defaultContent,
+  contentInstance: Content,
 ): readonly string[] {
   return contentInstance.playerBaseOnHitEffects;
 }

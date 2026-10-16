@@ -1,4 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
+import { defaultConfig } from '../helpers/config.js';
 import {
   advance,
   createInitialState,
@@ -74,27 +75,27 @@ describe('Combat Engine (M1-07)', () => {
       stages: [dummyStage],
     });
 
-    let state = createInitialState(1);
+    let state = createInitialState(1, defaultConfig);
     state = { ...state, unlockedStages: [...state.unlockedStages, 'dummy-stage'] };
-    state = startCombat(state, 'dummy-stage', customContent);
+    state = startCombat(state, 'dummy-stage', { ...defaultConfig, content: customContent });
 
     // Player attack rate at level 1 is 1.0 (interval 1.0 s)
     // Over 9 steps (0.9 s): no attack yet
     for (let i = 0; i < 9; i++) {
-      state = stepCombat(state, 0.1, customContent);
+      state = stepCombat(state, 0.1, { ...defaultConfig, content: customContent });
     }
     expect(state.combat!.playerAttackTimerMs).toBe(900);
     expect(state.combat!.enemies[0].hp).toBe(1000);
 
     // Step 10 (1.0 s): attack fires! Remainder is 0
-    state = stepCombat(state, 0.1, customContent);
+    state = stepCombat(state, 0.1, { ...defaultConfig, content: customContent });
     expect(state.combat!.playerAttackTimerMs).toBe(0);
     // Base attack is 10 (or 15 on crit)
     expect(state.combat!.enemies[0].hp).toBeLessThan(1000);
 
     // Run 15 more steps (total 25 steps = 2.5 s)
     for (let i = 0; i < 15; i++) {
-      state = stepCombat(state, 0.1, customContent);
+      state = stepCombat(state, 0.1, { ...defaultConfig, content: customContent });
     }
     // Exactly 2 attacks have fired, timer carries remainder 500 ms
     expect(state.combat!.playerAttackTimerMs).toBe(500);
@@ -139,13 +140,13 @@ describe('Combat Engine (M1-07)', () => {
           stages: [dummyStage],
         });
 
-        let state = createInitialState(42);
+        let state = createInitialState(42, defaultConfig);
         state = { ...state, unlockedStages: [...state.unlockedStages, 'sb-stage'] };
-        state = startCombat(state, 'sb-stage', customContent);
+        state = startCombat(state, 'sb-stage', { ...defaultConfig, content: customContent });
 
         // Force 10 steps (1.0 s) to trigger attack
         for (let i = 0; i < 10; i++) {
-          state = stepCombat(state, 0.1, customContent);
+          state = stepCombat(state, 0.1, { ...defaultConfig, content: customContent });
         }
 
         // Exact non-crit damage: 10. Initial enemy HP 100 -> exactly 90.
@@ -190,12 +191,12 @@ describe('Combat Engine (M1-07)', () => {
           stages: [dummyStage],
         });
 
-        let state = createInitialState(123);
+        let state = createInitialState(123, defaultConfig);
         state = { ...state, unlockedStages: [...state.unlockedStages, 'sbc-stage'] };
-        state = startCombat(state, 'sbc-stage', customContent);
+        state = startCombat(state, 'sbc-stage', { ...defaultConfig, content: customContent });
 
         for (let i = 0; i < 10; i++) {
-          state = stepCombat(state, 0.1, customContent);
+          state = stepCombat(state, 0.1, { ...defaultConfig, content: customContent });
         }
 
         // Exact crit damage: 10 * 1.5 = 15. Initial enemy HP 100 -> exactly 85.
@@ -211,15 +212,15 @@ describe('Combat Engine (M1-07)', () => {
   // 3. Determinism with seeded RNG
   // -------------------------------------------------------------------------
   it('gives identical combat results with same seed, differs with different seeds', () => {
-    let stateA = createInitialState(999);
-    stateA = dispatch(stateA, { type: 'startCombat', stageId: 'stage-1' });
+    let stateA = createInitialState(999, defaultConfig);
+    stateA = dispatch(stateA, { type: 'startCombat', stageId: 'stage-1' }, defaultConfig);
 
-    let stateB = createInitialState(999);
-    stateB = dispatch(stateB, { type: 'startCombat', stageId: 'stage-1' });
+    let stateB = createInitialState(999, defaultConfig);
+    stateB = dispatch(stateB, { type: 'startCombat', stageId: 'stage-1' }, defaultConfig);
 
     for (let i = 0; i < 50; i++) {
-      stateA = advance(stateA, 0.1);
-      stateB = advance(stateB, 0.1);
+      stateA = advance(stateA, 0.1, defaultConfig);
+      stateB = advance(stateB, 0.1, defaultConfig);
     }
 
     expect(stateA).toEqual(stateB);
@@ -256,15 +257,15 @@ describe('Combat Engine (M1-07)', () => {
       stages: [stage],
     });
 
-    let state = createInitialState(1);
+    let state = createInitialState(1, defaultConfig);
     state = { ...state, unlockedStages: [...state.unlockedStages, 'weak-stage'] };
-    state = startCombat(state, 'weak-stage', customContent);
+    state = startCombat(state, 'weak-stage', { ...defaultConfig, content: customContent });
 
     expect(state.combat!.enemies.length).toBe(2);
 
     // 10 steps (1.0 s): player kills first enemy
     for (let i = 0; i < 10; i++) {
-      state = stepCombat(state, 0.1, customContent);
+      state = stepCombat(state, 0.1, { ...defaultConfig, content: customContent });
     }
 
     // First enemy is dead and removed; second enemy is now the first living target
@@ -301,16 +302,16 @@ describe('Combat Engine (M1-07)', () => {
       stages: [stage],
     });
 
-    let state = createInitialState(1);
+    let state = createInitialState(1, defaultConfig);
     state = { ...state, unlockedStages: [...state.unlockedStages, 'multi-wave-stage'] };
-    state = startCombat(state, 'multi-wave-stage', customContent);
+    state = startCombat(state, 'multi-wave-stage', { ...defaultConfig, content: customContent });
 
     expect(state.combat!.waveIndex).toBe(0);
     expect(state.combat!.enemies.length).toBe(1);
 
     // Kill wave 1 enemy (step 10)
     for (let i = 0; i < 10; i++) {
-      state = stepCombat(state, 0.1, customContent);
+      state = stepCombat(state, 0.1, { ...defaultConfig, content: customContent });
     }
 
     // Wave advances to index 1!
@@ -320,7 +321,7 @@ describe('Combat Engine (M1-07)', () => {
 
     // Kill wave 2 enemy (step 20)
     for (let i = 0; i < 10; i++) {
-      state = stepCombat(state, 0.1, customContent);
+      state = stepCombat(state, 0.1, { ...defaultConfig, content: customContent });
     }
 
     // All regular waves cleared -> bossPending is true!
@@ -329,7 +330,7 @@ describe('Combat Engine (M1-07)', () => {
     expect(state.combat!.enemies.length).toBe(0);
 
     // Further steps do not process combat
-    const frozenState = stepCombat(state, 1.0, customContent);
+    const frozenState = stepCombat(state, 1.0, { ...defaultConfig, content: customContent });
     expect(frozenState).toEqual(state);
   });
 
@@ -362,16 +363,16 @@ describe('Combat Engine (M1-07)', () => {
       stages: [stage],
     });
 
-    let state = createInitialState(1);
+    let state = createInitialState(1, defaultConfig);
     state = { ...state, unlockedStages: [...state.unlockedStages, 'lethal-stage'] };
-    state = startCombat(state, 'lethal-stage', customContent);
+    state = startCombat(state, 'lethal-stage', { ...defaultConfig, content: customContent });
 
     expect(state.combat!.playerHp).toBe(100);
     expect(state.combat!.playerDefeated).toBe(false);
 
     // 5 steps (0.5 s): reaper attacks and deals 150 damage
     for (let i = 0; i < 5; i++) {
-      state = stepCombat(state, 0.1, customContent);
+      state = stepCombat(state, 0.1, { ...defaultConfig, content: customContent });
     }
 
     expect(state.combat!.playerHp).toBe(0);
@@ -380,7 +381,7 @@ describe('Combat Engine (M1-07)', () => {
     expect(state.combat!.phase.type).toBe('playerDefeated');
 
     // Subsequent combat steps are halted
-    const after = stepCombat(state, 0.5, customContent);
+    const after = stepCombat(state, 0.5, { ...defaultConfig, content: customContent });
     expect(after).toEqual(state);
   });
 
@@ -412,16 +413,16 @@ describe('Combat Engine (M1-07)', () => {
       stages: [stage],
     });
 
-    let state = createInitialState(1);
+    let state = createInitialState(1, defaultConfig);
     state = { ...state, unlockedStages: [...state.unlockedStages, 'xp-stage'] };
-    state = startCombat(state, 'xp-stage', customContent);
+    state = startCombat(state, 'xp-stage', { ...defaultConfig, content: customContent });
 
     expect(state.character.level).toBe(1);
     expect(state.character.xp).toBe(0);
 
     // Kill enemy at step 10
     for (let i = 0; i < 10; i++) {
-      state = stepCombat(state, 0.1, customContent);
+      state = stepCombat(state, 0.1, { ...defaultConfig, content: customContent });
     }
 
     // Leveled up to Level 2!
@@ -433,18 +434,18 @@ describe('Combat Engine (M1-07)', () => {
   // -------------------------------------------------------------------------
   // 8. Time splitting invariance (1 x 10s vs 100 x 0.1s)
   // -------------------------------------------------------------------------
-  it('time splitting invariance: advance(s, 10) === 100 x advance(s, 0.1)', () => {
-    let stateSingle = createInitialState(777);
-    stateSingle = dispatch(stateSingle, { type: 'startCombat', stageId: 'stage-1' });
+  it('time splitting invariance: advance(s, 10, defaultConfig) === 100 x advance(s, 0.1, defaultConfig)', () => {
+    let stateSingle = createInitialState(777, defaultConfig);
+    stateSingle = dispatch(stateSingle, { type: 'startCombat', stageId: 'stage-1' }, defaultConfig);
 
-    let stateSplit = createInitialState(777);
-    stateSplit = dispatch(stateSplit, { type: 'startCombat', stageId: 'stage-1' });
+    let stateSplit = createInitialState(777, defaultConfig);
+    stateSplit = dispatch(stateSplit, { type: 'startCombat', stageId: 'stage-1' }, defaultConfig);
 
-    const single = advance(stateSingle, 10);
+    const single = advance(stateSingle, 10, defaultConfig);
 
     let split = stateSplit;
     for (let i = 0; i < 100; i++) {
-      split = advance(split, 0.1);
+      split = advance(split, 0.1, defaultConfig);
     }
 
     expect(single).toEqual(split);
@@ -481,9 +482,9 @@ describe('Combat Engine (M1-07)', () => {
         stages: [stage],
       });
 
-      let state = createInitialState(1);
+      let state = createInitialState(1, defaultConfig);
       state = { ...state, unlockedStages: [...state.unlockedStages, 'dot-wave-stage'] };
-      state = startCombat(state, 'dot-wave-stage', customContent);
+      state = startCombat(state, 'dot-wave-stage', { ...defaultConfig, content: customContent });
 
       // Enemy has 2 HP and active DoT with tick ready to deal 3 damage (lethal)
       const enemyWithDoT: EnemyState = {
@@ -509,7 +510,7 @@ describe('Combat Engine (M1-07)', () => {
         },
       };
 
-      state = stepCombat(state, 0.1, customContent);
+      state = stepCombat(state, 0.1, { ...defaultConfig, content: customContent });
 
       // XP awarded exactly once for 30 XP (level remains 1)
       expect(state.character.level).toBe(1);
@@ -547,9 +548,9 @@ describe('Combat Engine (M1-07)', () => {
           stages: [stage],
         });
 
-        let state = createInitialState(1);
+        let state = createInitialState(1, defaultConfig);
         state = { ...state, unlockedStages: [...state.unlockedStages, 'tie-stage-1'] };
-        state = startCombat(state, 'tie-stage-1', customContent);
+        state = startCombat(state, 'tie-stage-1', { ...defaultConfig, content: customContent });
 
         // Player has 2 HP and lethal DoT (burn deals 3)
         // Enemy has 2 HP and lethal DoT (burn deals 3)
@@ -583,7 +584,7 @@ describe('Combat Engine (M1-07)', () => {
           },
         };
 
-        state = stepCombat(state, 0.1, customContent);
+        state = stepCombat(state, 0.1, { ...defaultConfig, content: customContent });
 
         // D14: Player wins tie, survives with 1 HP; stage cleared regular waves -> bossPending
         expect(state.combat!.playerHp).toBe(1);
@@ -616,9 +617,9 @@ describe('Combat Engine (M1-07)', () => {
           stages: [stage],
         });
 
-        let state = createInitialState(1);
+        let state = createInitialState(1, defaultConfig);
         state = { ...state, unlockedStages: [...state.unlockedStages, 'tie-stage-2'] };
-        state = startCombat(state, 'tie-stage-2', customContent);
+        state = startCombat(state, 'tie-stage-2', { ...defaultConfig, content: customContent });
 
         // Player has 2 HP and lethal DoT (3 damage)
         // Enemy has 2 HP, no DoT.
@@ -647,7 +648,7 @@ describe('Combat Engine (M1-07)', () => {
           },
         };
 
-        state = stepCombat(state, 0.1, customContent);
+        state = stepCombat(state, 0.1, { ...defaultConfig, content: customContent });
 
         // D14: Player wins tie, survives with 1 HP; bossPending
         expect(state.combat!.playerHp).toBe(1);
@@ -682,15 +683,15 @@ describe('Combat Engine (M1-07)', () => {
         stages: [stage],
       });
 
-      let state = createInitialState(1);
+      let state = createInitialState(1, defaultConfig);
       state = { ...state, unlockedStages: [...state.unlockedStages, 'fast-stage'] };
-      state = startCombat(state, 'fast-stage', customContent);
+      state = startCombat(state, 'fast-stage', { ...defaultConfig, content: customContent });
 
       const initialHp = state.combat!.playerHp;
 
       // In 0.1s (100 ms): 100 / 40 = 2 attacks, remainder 20 ms.
       // Total damage = 2 * 4 = 8.
-      state = stepCombat(state, 0.1, customContent);
+      state = stepCombat(state, 0.1, { ...defaultConfig, content: customContent });
 
       expect(state.combat!.playerHp).toBe(initialHp - 8);
       expect(state.combat!.enemies[0].attackTimerMs).toBe(20);
@@ -740,9 +741,9 @@ describe('Combat Engine (M1-07)', () => {
         stages: [stage],
       });
 
-      let state = createInitialState(1);
+      let state = createInitialState(1, defaultConfig);
       state = { ...state, unlockedStages: [...state.unlockedStages, 'multi-hit-stage'] };
-      state = startCombat(state, 'multi-hit-stage', customContent);
+      state = startCombat(state, 'multi-hit-stage', { ...defaultConfig, content: customContent });
 
       // Force player to have taken 20 damage (currentHp = 80, playerHp = 80)
       state = {
@@ -762,7 +763,7 @@ describe('Combat Engine (M1-07)', () => {
       // Ensure hit 2 does not crit so we can verify exact non-crit level 2 attack stat
       const origDeriveStats = statsModule.deriveStats;
       const statsSpy = vi.spyOn(statsModule, 'deriveStats').mockImplementation((s) => {
-        const stats = origDeriveStats(s);
+        const stats = origDeriveStats(s, defaultConfig);
         return { ...stats, critChance: 0 };
       });
 
@@ -771,7 +772,7 @@ describe('Combat Engine (M1-07)', () => {
         // Attack 1 (at level 1 attack: 10): kills Mob 1 (5 HP). Awards 50 XP -> Level-up to Level 2!
         // D15: currentHp must remain 80 (not healed to full).
         // Attack 2 (at level 2): attack stat is 10 * 1.07 = 10.7. Mob 2 takes 10.7 damage.
-        state = stepCombat(state, 0.1, customContent);
+        state = stepCombat(state, 0.1, { ...defaultConfig, content: customContent });
 
         expect(state.character.level).toBe(2);
         expect(state.character.currentHp).toBe(80);
@@ -813,9 +814,9 @@ describe('Combat Engine (M1-07)', () => {
         stages: [stage],
       });
 
-      let state = createInitialState(1);
+      let state = createInitialState(1, defaultConfig);
       state = { ...state, unlockedStages: [...state.unlockedStages, 'persist-stage'] };
-      state = startCombat(state, 'persist-stage', customContent);
+      state = startCombat(state, 'persist-stage', { ...defaultConfig, content: customContent });
 
       // Add a stun effect to the player with 3000 ms remaining
       state = {
@@ -856,7 +857,7 @@ describe('Combat Engine (M1-07)', () => {
         },
       };
 
-      state = stepCombat(state, 0.1, customContent);
+      state = stepCombat(state, 0.1, { ...defaultConfig, content: customContent });
 
       // Wave advanced to wave 1
       expect(state.combat!.waveIndex).toBe(1);
@@ -871,8 +872,8 @@ describe('Combat Engine (M1-07)', () => {
 
     // g) State immutability: deep equality after JSON round trip of a fully populated CombatState with effects, timers, multiple enemies
     it('survives JSON round trip with deep equality on a fully populated CombatState', () => {
-      const state = createInitialState(42);
-      const started = startCombat(state, 'stage-1');
+      const state = createInitialState(42, defaultConfig);
+      const started = startCombat(state, 'stage-1', defaultConfig);
 
       const richState: GameState = {
         ...started,

@@ -1,4 +1,5 @@
 import { describe, it, expect } from 'vitest';
+import { defaultConfig } from '../helpers/config.js';
 import {
   advance,
   applyEffect,
@@ -275,9 +276,9 @@ describe('Timed Effects System (M1-08)', () => {
       stages: [stage],
     });
 
-    let state = createInitialState(1);
+    let state = createInitialState(1, defaultConfig);
     state = { ...state, unlockedStages: [...state.unlockedStages, 'dot-stage'] };
-    state = startCombat(state, 'dot-stage', customContent);
+    state = startCombat(state, 'dot-stage', { ...defaultConfig, content: customContent });
 
     // Apply Burn directly to enemy
     const burnDef = customContent.effects.get('burn')!;
@@ -298,7 +299,7 @@ describe('Timed Effects System (M1-08)', () => {
 
     // Advance 10 steps (1.0s) -> Burn ticks for 3 damage, killing the enemy (2 HP -> 0)
     for (let i = 0; i < 10; i++) {
-      state = stepCombat(state, 0.1, customContent);
+      state = stepCombat(state, 0.1, { ...defaultConfig, content: customContent });
     }
 
     // Enemy was killed by DoT!
@@ -309,7 +310,7 @@ describe('Timed Effects System (M1-08)', () => {
     expect(state.combat!.bossPending).toBe(true);
 
     // Subsequent steps do not award more XP
-    state = stepCombat(state, 1.0, customContent);
+    state = stepCombat(state, 1.0, { ...defaultConfig, content: customContent });
     expect(state.character.xp).toBe(25);
   });
 
@@ -342,13 +343,13 @@ describe('Timed Effects System (M1-08)', () => {
       stages: [stage],
     });
 
-    let state = createInitialState(1);
+    let state = createInitialState(1, defaultConfig);
     state = { ...state, unlockedStages: [...state.unlockedStages, 'stun-stage'] };
-    state = startCombat(state, 'stun-stage', customContent);
+    state = startCombat(state, 'stun-stage', { ...defaultConfig, content: customContent });
 
     // Advance 4 steps (0.4s) -> playerAttackTimerMs is 400
     for (let i = 0; i < 4; i++) {
-      state = stepCombat(state, 0.1, customContent);
+      state = stepCombat(state, 0.1, { ...defaultConfig, content: customContent });
     }
     expect(state.combat!.playerAttackTimerMs).toBe(400);
 
@@ -364,7 +365,7 @@ describe('Timed Effects System (M1-08)', () => {
 
     // Advance 15 steps (1.5s) while stunned
     for (let i = 0; i < 15; i++) {
-      state = stepCombat(state, 0.1, customContent);
+      state = stepCombat(state, 0.1, { ...defaultConfig, content: customContent });
       // Timer must remain frozen at 400 ms
       expect(state.combat!.playerAttackTimerMs).toBe(400);
     }
@@ -374,18 +375,18 @@ describe('Timed Effects System (M1-08)', () => {
     expect(state.combat!.playerEffects.length).toBe(0);
 
     // Next step (step 1 after stun ends): timer resumes from 400 -> 500 ms
-    state = stepCombat(state, 0.1, customContent);
+    state = stepCombat(state, 0.1, { ...defaultConfig, content: customContent });
     expect(state.combat!.playerAttackTimerMs).toBe(500);
 
     // Advance 5 more steps to reach 1000 ms (requires 500 ms more to attack, no free instant attack!)
     for (let i = 0; i < 4; i++) {
-      state = stepCombat(state, 0.1, customContent);
+      state = stepCombat(state, 0.1, { ...defaultConfig, content: customContent });
     }
     expect(state.combat!.playerAttackTimerMs).toBe(900);
 
     // Step to 1000 ms -> attack finally fires!
     const hpBefore = state.combat!.enemies[0].hp;
-    state = stepCombat(state, 0.1, customContent);
+    state = stepCombat(state, 0.1, { ...defaultConfig, content: customContent });
     expect(state.combat!.playerAttackTimerMs).toBe(0);
     expect(state.combat!.enemies[0].hp).toBeLessThan(hpBefore);
   });
@@ -419,9 +420,9 @@ describe('Timed Effects System (M1-08)', () => {
       stages: [stage],
     });
 
-    let state = createInitialState(1);
+    let state = createInitialState(1, defaultConfig);
     state = { ...state, unlockedStages: [...state.unlockedStages, 'fragile-stage'] };
-    state = startCombat(state, 'fragile-stage', customContent);
+    state = startCombat(state, 'fragile-stage', { ...defaultConfig, content: customContent });
 
     // Apply stun to enemy
     const enemyWithStun = {
@@ -439,7 +440,7 @@ describe('Timed Effects System (M1-08)', () => {
 
     // Player attacks at step 10 and kills the fragile enemy (10 damage vs 5 HP)
     for (let i = 0; i < 10; i++) {
-      state = stepCombat(state, 0.1, customContent);
+      state = stepCombat(state, 0.1, { ...defaultConfig, content: customContent });
     }
 
     // Enemy is removed, so its stun effect is also gone
@@ -449,18 +450,18 @@ describe('Timed Effects System (M1-08)', () => {
   // -------------------------------------------------------------------------
   // 9. Time splitting invariance with effects active
   // -------------------------------------------------------------------------
-  it('time splitting invariance with effects active: advance(s, 10) === 100 x advance(s, 0.1)', () => {
-    let stateSingle = createInitialState(101);
-    stateSingle = dispatch(stateSingle, { type: 'startCombat', stageId: 'stage-1' });
+  it('time splitting invariance with effects active: advance(s, 10, defaultConfig) === 100 x advance(s, 0.1, defaultConfig)', () => {
+    let stateSingle = createInitialState(101, defaultConfig);
+    stateSingle = dispatch(stateSingle, { type: 'startCombat', stageId: 'stage-1' }, defaultConfig);
 
-    let stateSplit = createInitialState(101);
-    stateSplit = dispatch(stateSplit, { type: 'startCombat', stageId: 'stage-1' });
+    let stateSplit = createInitialState(101, defaultConfig);
+    stateSplit = dispatch(stateSplit, { type: 'startCombat', stageId: 'stage-1' }, defaultConfig);
 
-    const single = advance(stateSingle, 10);
+    const single = advance(stateSingle, 10, defaultConfig);
 
     let split = stateSplit;
     for (let i = 0; i < 100; i++) {
-      split = advance(split, 0.1);
+      split = advance(split, 0.1, defaultConfig);
     }
 
     expect(single).toEqual(split);

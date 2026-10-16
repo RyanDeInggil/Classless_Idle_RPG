@@ -2,9 +2,9 @@
  * Core step runner — M1-03.
  *
  * Public API:
- *   createInitialState(seed) → GameState
- *   advance(state, seconds)  → GameState   (pure, never mutates input)
- *   dispatch(state, action)  → GameState   (pure, never mutates input)
+ *   createInitialState(seed, config) → GameState
+ *   advance(state, seconds, config)  → GameState   (pure, never mutates input)
+ *   dispatch(state, action, config)  → GameState   (pure, never mutates input)
  *
  * Simulation rules (D6):
  *   - Fixed internal step: STEP_MS = 100 ms (0.1 s).
@@ -15,11 +15,9 @@
  * No Math.random(), Date.now(), localStorage, or DOM access here.
  */
 
-import { STARTING_LEVEL } from '../data/character.js';
-import { content } from '../data/index.js';
 import { deriveStatsForLevel } from './stats.js';
 import { startCombat, stepCombat } from './combat/index.js';
-import type { GameState, Action } from './types.js';
+import type { GameConfig, GameState, Action } from './types.js';
 
 // ---------------------------------------------------------------------------
 // Constants (exported so tests can pin them)
@@ -34,21 +32,22 @@ export const MAX_STEPS = 100;    // 10 s cap per advance() call
 
 export function createInitialState(
   seed: number,
-  startingStageId: string = content.startingStageId,
+  config: GameConfig,
+  startingLevel: number = 1,
 ): GameState {
   return {
     version: 1,
     rng: { seed: seed >>> 0 },
     character: {
-      level: STARTING_LEVEL,
+      level: startingLevel,
       xp: 0,
       skillPoints: 0,
       // Derived from character data, so a new character always starts at full health.
-      currentHp: deriveStatsForLevel(STARTING_LEVEL).maxHp,
+      currentHp: deriveStatsForLevel(startingLevel, config.character).maxHp,
     },
     combat: null,
     activeActivity: null,
-    unlockedStages: [startingStageId],
+    unlockedStages: [config.content.startingStageId],
     savedAt: null,
     remainderMs: 0,
   } satisfies GameState;
@@ -61,9 +60,9 @@ export function createInitialState(
 /**
  * Advance game logic by exactly STEP_MS milliseconds.
  */
-function tick(state: GameState, stepSeconds: number): GameState {
+function tick(state: GameState, stepSeconds: number, config: GameConfig): GameState {
   if (state.activeActivity === 'combat' && state.combat !== null) {
-    return stepCombat(state, stepSeconds);
+    return stepCombat(state, stepSeconds, config);
   }
   return state;
 }
@@ -77,11 +76,11 @@ function tick(state: GameState, stepSeconds: number): GameState {
  * whole STEP_MS ticks, and carries the remainder into the returned state.
  *
  * Invariants:
- *   advance(s, 10) ≡ advance100Times(s, 0.1)   (split-test)
- *   advance(s, n)  does not mutate s
- *   advance(s, n) ≡ advance(s, n)               (deterministic)
+ *   advance(s, 10, config) ≡ advance100Times(s, 0.1, config)   (split-test)
+ *   advance(s, n, config)  does not mutate s
+ *   advance(s, n, config) ≡ advance(s, n, config)               (deterministic)
  */
-export function advance(state: GameState, seconds: number): GameState {
+export function advance(state: GameState, seconds: number, config: GameConfig): GameState {
   if (!Number.isFinite(seconds) || seconds < 0) {
     throw new RangeError(
       `advance() requires a non-negative finite number of seconds, received ${seconds}`,
@@ -100,7 +99,7 @@ export function advance(state: GameState, seconds: number): GameState {
 
   let s: GameState = { ...state, remainderMs: newRemainderMs };
   for (let i = 0; i < steps; i++) {
-    s = tick(s, STEP_MS / 1000);
+    s = tick(s, STEP_MS / 1000, config);
   }
   return s;
 }
@@ -113,12 +112,12 @@ export function advance(state: GameState, seconds: number): GameState {
  * Pure action dispatcher. Returns updated state; never mutates input.
  * Exhaustive switch ensures TypeScript catches unhandled action types.
  */
-export function dispatch(state: GameState, action: Action): GameState {
+export function dispatch(state: GameState, action: Action, config: GameConfig): GameState {
   switch (action.type) {
     case 'startCombat': {
       if (state.activeActivity !== null) return state;
       if (!state.unlockedStages.includes(action.stageId)) return state;
-      return startCombat(state, action.stageId);
+      return startCombat(state, action.stageId, config);
     }
 
     case 'stopCombat': {

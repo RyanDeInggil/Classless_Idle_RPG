@@ -9,6 +9,9 @@
  */
 
 import type { RngState } from './rng.js';
+import type { Content } from '../data/schemas.js';
+import type { CharacterStatsData } from '../data/character.js';
+import type { LevelCurveConfig } from '../data/levelCurve.js';
 
 // ---------------------------------------------------------------------------
 // Character
@@ -24,6 +27,21 @@ export interface CharacterState {
 // Base statistics and per-level growth are content data (src/data/character.ts);
 // final statistics come from deriveStats() in core/stats.ts and are never stored
 // here (hard rule 5, D14).
+
+// ---------------------------------------------------------------------------
+// Game Configuration
+// ---------------------------------------------------------------------------
+
+/**
+ * GameConfig bundles all data-layer configuration that core functions need.
+ * Core may import types from data to build this interface, but MUST NOT import
+ * data singleton values.
+ */
+export interface GameConfig {
+  readonly content: Content;
+  readonly character: CharacterStatsData;
+  readonly levelCurve: LevelCurveConfig;
+}
 
 // ---------------------------------------------------------------------------
 // Combat
