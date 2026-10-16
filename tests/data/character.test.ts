@@ -4,6 +4,7 @@ import { characterStats, characterStatsSchema } from '../../src/data/character.j
 const valid = {
   base: { maxHp: 100, attack: 10, attackRate: 1, critChance: 0.05, critDamage: 1.5 },
   growthPerLevel: { maxHp: 1.08, attack: 1.07, attackRate: 1.02, critChance: 1.04, critDamage: 1.01 },
+  startingLevel: 1,
 };
 
 describe('character stats data', () => {
@@ -54,5 +55,11 @@ describe('character stats data', () => {
     const { attackRate, ...incompleteBase } = valid.base;
     void attackRate;
     expect(() => characterStatsSchema.parse({ ...valid, base: incompleteBase })).toThrow();
+  });
+
+  it('rejects missing startingLevel', () => {
+    const { startingLevel, ...incomplete } = valid;
+    void startingLevel;
+    expect(() => characterStatsSchema.parse(incomplete)).toThrow();
   });
 });

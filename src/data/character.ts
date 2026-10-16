@@ -49,7 +49,7 @@ export const characterStatsSchema = z.object({
   /** Player on-hit effects in Phase 1 (fed from skill tree in Phase 2). */
   baseOnHitEffects: z.array(z.string()).default(['burn']),
   /** Level at which a new character starts. */
-  startingLevel: z.number().int().positive().default(1),
+  startingLevel: z.number().int().positive(),
 });
 
 export type BaseStats = z.infer<typeof baseStatsSchema>;
