@@ -17,7 +17,7 @@ Status: RESOLVED = implement as written. OPEN = needs owner input; do not guess.
 | D11 | Phase 1 content size | 1 stage, 3 waves, 1 boss, 3 enemy types, 1 player-side effect (Burn), 1 enemy effect (Stun on boss). | RESOLVED |
 | D12 | Level curve | `xpToNext(level) = round(50 * 1.35^(level-1))`. Tunable in data. Skill points are granted but unspent until Phase 2. | RESOLVED |
 | D13 | Mana spending | Phase 3 must include at least one mana-costed skill, otherwise mana does nothing. | OPEN (carry to Phase 3) |
-| D14 | Simultaneous deaths | If the player and the last enemy would both die in the same step, the player wins. Apply this consistently to both DoT deaths and direct attacks. | RESOLVED |
+| D14 | Simultaneous deaths | If the player and the last enemy of the current wave would both die in the same step, the player wins and is left at 1 HP. Applies only in a tie; DoT can otherwise kill the player. | RESOLVED |
 | D15 | Level-up mid-fight | On level-up mid-fight, max HP increases and current HP is unchanged. | RESOLVED |
 | D16 | Wave effect persistence | Player effects persist across wave transitions until they expire. Enemy effects are removed when the enemy dies. | RESOLVED |
 | D17 | Level stat growth | Levels raise combat stats: `stat(level) = base * growthPerLevel^(level - 1)`. Base stats, growth factors and `STARTING_LEVEL` live in `src/data/character.ts` (Zod-validated) and are **not** saved — `CharacterState` stores only `level`, `xp`, `skillPoints`, `currentHp`. `deriveStats(state)` is recalculated on read (rule 5, FR-007/FR-100). Critical chance is clamped to 1 and critical damage to >= 1x. Numbers are tuned in M1-15. | RESOLVED |
