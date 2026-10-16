@@ -1,0 +1,17 @@
+:root {
+  color-scheme: dark;
+  background-color: #1a1a2e;
+  color: #e0e0e0;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+  margin: 0;
+}
+
+body {
+  min-height: 100vh;
+  font-family: system-ui, -apple-system, sans-serif;
+}
