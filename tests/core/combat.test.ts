@@ -1258,3 +1258,72 @@ describe('Combat Engine (M1-07)', () => {
     });
   });
 });
+
+describe('Fix 2: stunnedAtStart flag behavior', () => {
+  it('enemy whose stun expires this step and is hit by player must not attack this step', () => {
+    const lethalEnemy: EnemyDef = {
+      id: 'stun-expire-enemy',
+      name: 'Stun Expire Enemy',
+      maxHp: 100,
+      damage: 50, // Enough to be noticeable if it attacks
+      attackInterval: 0.01, // Very fast, would attack multiple times in 0.1s if not stunned
+      xpReward: 10,
+      isBoss: false,
+      onHitEffects: [],
+    };
+    const wave: WaveDef = { id: 'stun-exp-w', enemies: [{ enemyId: 'stun-expire-enemy', count: 1 }] };
+    const stage: StageDef = {
+      id: 'stun-exp-stage',
+      name: 'Stun Expire Stage',
+      waves: ['stun-exp-w'],
+      boss: 'goblin-chief',
+      bossXpBonus: 0,
+    };
+    const customContent = makeCustomContent({
+      enemies: [lethalEnemy],
+      waves: [wave],
+      stages: [stage],
+    });
+
+    let state = createInitialState(1, defaultConfig);
+    state = { ...state, unlockedStages: [...state.unlockedStages, 'stun-exp-stage'] };
+    state = startCombat(state, 'stun-exp-stage', { ...defaultConfig, content: customContent });
+
+    // Enemy has a stun with 50 ms remaining (will expire during this 100 ms step)
+    // Player attack timer is ready (1000 ms, will fire this step and hit the enemy)
+    const initialPlayerHp = state.combat!.playerHp;
+    state = {
+      ...state,
+      combat: {
+        ...state.combat!,
+        playerAttackTimerMs: 1000,
+        enemies: [
+          {
+            ...state.combat!.enemies[0],
+            effects: [
+              {
+                effectId: 'stun',
+                remainingMs: 50, // Expires during this step
+                tickTimerMs: 0,
+                stacks: 1,
+              },
+            ],
+          },
+        ],
+      },
+    };
+
+    state = stepCombat(state, 0.1, { ...defaultConfig, content: customContent });
+
+    // Enemy was stunned at start, so it must not attack this step
+    // Player HP should be unchanged
+    expect(state.combat!.playerHp).toBe(initialPlayerHp);
+
+    // Enemy should have been hit by player (HP < 100)
+    expect(state.combat!.enemies[0].hp).toBeLessThan(100);
+
+    // Stun should have expired (remainingMs = 0 or effect removed)
+    const stunEffect = state.combat!.enemies[0].effects.find((e) => e.effectId === 'stun');
+    expect(stunEffect).toBeUndefined();
+  });
+});

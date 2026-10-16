@@ -194,10 +194,12 @@ export function stepCombat(
   // 0. Tick Active Effects (DoT & Expired Duration)
   // -------------------------------------------------------------------------
   const playerStunnedAtStart = isStunned(playerEffects, contentInstance);
-  const enemiesStunnedAtStart = new Set<EnemyState>();
+
+  // Build working records for enemies with stunnedAtStart flag
+  type EnemyWorkingRecord = EnemyState & { stunnedAtStart: boolean };
 
   // Enemies DoT
-  const survivingEnemiesAfterDot: EnemyState[] = [];
+  const survivingEnemiesAfterDot: EnemyWorkingRecord[] = [];
   for (const enemy of currentEnemies) {
     const wasStunned = isStunned(enemy.effects, contentInstance);
     const tickResult = tickEffectInstances(enemy.effects, dt, contentInstance);
@@ -211,28 +213,27 @@ export function stepCombat(
       }
       // Dead enemy removed (effects vanish with it)
     } else {
-      const survivingEnemy: EnemyState = {
+      const survivingEnemy: EnemyWorkingRecord = {
         ...enemy,
         hp: newHp,
         effects: tickResult.effects,
+        stunnedAtStart: wasStunned,
       };
-      if (wasStunned) {
-        enemiesStunnedAtStart.add(survivingEnemy);
-      }
       survivingEnemiesAfterDot.push(survivingEnemy);
     }
   }
-  currentEnemies = survivingEnemiesAfterDot;
+  let currentEnemiesWorking: EnemyWorkingRecord[] = survivingEnemiesAfterDot;
 
   // Check wave advancement if DoT cleared the wave
-  if (currentEnemies.length === 0 && hadEnemiesAtStart) {
+  if (currentEnemiesWorking.length === 0 && hadEnemiesAtStart) {
     waveClearedThisStep = true;
     const stage = contentInstance.stages.get(combat.stageId);
     if (stage) {
       const nextWaveIndex = add(waveIndex, 1);
       if (nextWaveIndex < stage.waves.length) {
         waveIndex = nextWaveIndex;
-        currentEnemies = [...spawnWaveEnemies(stage.waves[waveIndex], contentInstance)];
+        const freshEnemies = spawnWaveEnemies(stage.waves[waveIndex], contentInstance);
+        currentEnemiesWorking = freshEnemies.map((e) => ({ ...e, stunnedAtStart: false }));
       } else {
         bossPending = true;
         phase = { type: 'bossPending' };
@@ -272,7 +273,7 @@ export function stepCombat(
       let playerAttackIntervalMs = round(div(1000, playerStats.attackRate));
       playerTimerMs = add(playerTimerMs, dtMs);
 
-      while (playerTimerMs >= playerAttackIntervalMs && currentEnemies.length > 0) {
+      while (playerTimerMs >= playerAttackIntervalMs && currentEnemiesWorking.length > 0) {
         playerTimerMs = sub(playerTimerMs, playerAttackIntervalMs);
 
         // Derive stats from latest currentState (recalculated in case mid-step kill leveled up player, per D15)
@@ -288,7 +289,7 @@ export function stepCombat(
           : playerStats.attack;
 
         // Hits the first living enemy
-        const target = currentEnemies[0];
+        const target = currentEnemiesWorking[0];
         const newEnemyHp = clamp(sub(target.hp, damage), 0, target.maxHp);
 
         if (newEnemyHp <= 0) {
@@ -298,7 +299,7 @@ export function stepCombat(
             currentState = awardXp(currentState, enemyDef.xpReward, config.levelCurve);
           }
           // Remove dead enemy
-          currentEnemies = currentEnemies.slice(1);
+          currentEnemiesWorking = currentEnemiesWorking.slice(1);
         } else {
           // Enemy survives hit: apply player's on-hit effects
           let updatedEffects = target.effects;
@@ -310,28 +311,25 @@ export function stepCombat(
             }
           }
 
-          const wasStunned = enemiesStunnedAtStart.has(target);
-          const updatedTarget: EnemyState = {
+          const updatedTarget: EnemyWorkingRecord = {
             ...target,
             hp: newEnemyHp,
             effects: updatedEffects,
           };
-          if (wasStunned) {
-            enemiesStunnedAtStart.add(updatedTarget);
-          }
-          currentEnemies[0] = updatedTarget;
+          currentEnemiesWorking[0] = updatedTarget;
         }
       }
 
       // Check wave advancement after player attacks
-      if (currentEnemies.length === 0) {
+      if (currentEnemiesWorking.length === 0) {
         waveClearedThisStep = true;
         const stage = contentInstance.stages.get(combat.stageId);
         if (stage) {
           const nextWaveIndex = add(waveIndex, 1);
           if (nextWaveIndex < stage.waves.length) {
             waveIndex = nextWaveIndex;
-            currentEnemies = [...spawnWaveEnemies(stage.waves[waveIndex], contentInstance)];
+            const freshEnemies = spawnWaveEnemies(stage.waves[waveIndex], contentInstance);
+            currentEnemiesWorking = freshEnemies.map((e) => ({ ...e, stunnedAtStart: false }));
           } else {
             // Cleared final regular wave -> boss pending
             bossPending = true;
@@ -358,10 +356,10 @@ export function stepCombat(
   // -------------------------------------------------------------------------
   // 2. Enemy Attack Cycle (if not boss pending and player still alive)
   // -------------------------------------------------------------------------
-  if (!playerDefeated && !bossPending && currentEnemies.length > 0) {
-    const updatedEnemies: EnemyState[] = [];
+  if (!playerDefeated && !bossPending && currentEnemiesWorking.length > 0) {
+    const updatedEnemies: EnemyWorkingRecord[] = [];
 
-    for (const enemy of currentEnemies) {
+    for (const enemy of currentEnemiesWorking) {
       if (playerDefeated) {
         updatedEnemies.push(enemy);
         continue;
@@ -373,8 +371,7 @@ export function stepCombat(
         continue;
       }
 
-      const enemyStunned =
-        enemiesStunnedAtStart.has(enemy) || isStunned(enemy.effects, contentInstance);
+      const enemyStunned = enemy.stunnedAtStart || isStunned(enemy.effects, contentInstance);
       let enemyTimerMs = enemy.attackTimerMs;
 
       if (!enemyStunned) {
@@ -413,8 +410,11 @@ export function stepCombat(
       });
     }
 
-    currentEnemies = updatedEnemies;
+    currentEnemiesWorking = updatedEnemies;
   }
+
+  // Strip the stunnedAtStart flag to get clean EnemyState array
+  currentEnemies = currentEnemiesWorking.map(({ stunnedAtStart, ...rest }) => rest);
 
   // -------------------------------------------------------------------------
   // 3. Assemble Updated GameState
