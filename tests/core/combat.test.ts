@@ -6,6 +6,7 @@ import {
   dispatch,
   startCombat,
   stepCombat,
+  spawnWaveEnemies,
 } from '../../src/core/index.js';
 import * as statsModule from '../../src/core/stats.js';
 import type { EnemyState, GameState } from '../../src/core/types.js';
@@ -1325,5 +1326,165 @@ describe('Fix 2: stunnedAtStart flag behavior', () => {
     // Stun should have expired (remainingMs = 0 or effect removed)
     const stunEffect = state.combat!.enemies[0].effects.find((e) => e.effectId === 'stun');
     expect(stunEffect).toBeUndefined();
+  });
+});
+
+describe('Fix 3: Coverage for startCombat and error paths', () => {
+  it('startCombat does nothing when other activity is running', () => {
+    let state = createInitialState(1, defaultConfig);
+    // Simulate another activity by manually setting combat state with active activity
+    state = {
+      ...state,
+      activeActivity: 'combat',
+      combat: {
+        stageId: 'stage-1',
+        waveIndex: 0,
+        enemies: [],
+        playerAttackTimerMs: 0,
+        playerHp: 100,
+        playerEffects: [],
+        bossPending: false,
+        playerDefeated: false,
+        phase: { type: 'active' },
+        log: [],
+      },
+    };
+    // Use a hack to simulate training activity
+    const stateWithTraining = state as any;
+    stateWithTraining.activeActivity = 'training';
+    const result = startCombat(stateWithTraining, 'stage-1', defaultConfig);
+    expect(result).toEqual(stateWithTraining);
+  });
+
+  it('startCombat does nothing when stage is locked', () => {
+    let state = createInitialState(1, defaultConfig);
+    // Remove stage-1 from unlocked stages
+    state = { ...state, unlockedStages: [] };
+    const result = startCombat(state, 'stage-1', defaultConfig);
+    expect(result).toEqual(state);
+    expect(result.combat).toBeNull();
+  });
+
+  it('startCombat does nothing when stage is missing from content', () => {
+    let state = createInitialState(1, defaultConfig);
+    const result = startCombat(state, 'nonexistent-stage', defaultConfig);
+    expect(result).toEqual(state);
+    expect(result.combat).toBeNull();
+  });
+
+  it('spawnWaveEnemies throws when wave is missing', () => {
+    expect(() => {
+      spawnWaveEnemies('nonexistent-wave', defaultConfig.content);
+    }).toThrow("spawnWaveEnemies: wave 'nonexistent-wave' not found in content");
+  });
+
+  it('spawnWaveEnemies throws when enemy is missing', () => {
+    const brokenWave: WaveDef = {
+      id: 'broken-wave',
+      enemies: [{ enemyId: 'nonexistent-enemy', count: 1 }],
+    };
+    const customContent = makeCustomContent({ waves: [brokenWave] });
+
+    expect(() => {
+      spawnWaveEnemies('broken-wave', customContent);
+    }).toThrow("spawnWaveEnemies: enemy 'nonexistent-enemy' not found in content");
+  });
+
+  it('stepCombat does nothing when no combat is active', () => {
+    let state = createInitialState(1, defaultConfig);
+    state = { ...state, activeActivity: null, combat: null };
+    const result = stepCombat(state, 0.1, defaultConfig);
+    expect(result).toEqual(state);
+  });
+
+  it('stepCombat does nothing when activeActivity is not combat', () => {
+    let state = createInitialState(1, defaultConfig);
+    state = startCombat(state, 'stage-1', defaultConfig);
+    const stateWithTraining = state as any;
+    stateWithTraining.activeActivity = 'training';
+    const before = stateWithTraining.combat;
+    const result = stepCombat(stateWithTraining, 0.1, defaultConfig);
+    expect(result.combat).toEqual(before);
+  });
+
+  it('stepCombat repairs playerHp <= 0 to defeated state', () => {
+    let state = createInitialState(1, defaultConfig);
+    state = startCombat(state, 'stage-1', defaultConfig);
+    // Manually set playerHp to 0 without defeated flag
+    state = {
+      ...state,
+      combat: {
+        ...state.combat!,
+        playerHp: 0,
+        playerDefeated: false,
+      },
+    };
+
+    const result = stepCombat(state, 0.1, defaultConfig);
+
+    expect(result.combat!.playerHp).toBe(0);
+    expect(result.combat!.playerDefeated).toBe(true);
+    expect(result.combat!.phase.type).toBe('playerDefeated');
+    expect(result.combat!.playerEffects).toEqual([]);
+    expect(result.character.currentHp).toBe(0);
+  });
+
+  it('player dying mid enemy-loop stops further enemy attacks', () => {
+    // Create a scenario where the first enemy kills the player
+    const lethalEnemy: EnemyDef = {
+      id: 'killer',
+      name: 'Killer',
+      maxHp: 100,
+      damage: 120, // Lethal
+      attackInterval: 0.01, // Fast
+      xpReward: 10,
+      isBoss: false,
+      onHitEffects: [],
+    };
+    const harmlessEnemy: EnemyDef = {
+      id: 'harmless',
+      name: 'Harmless',
+      maxHp: 100,
+      damage: 1,
+      attackInterval: 0.01,
+      xpReward: 10,
+      isBoss: false,
+      onHitEffects: [],
+    };
+    const wave: WaveDef = {
+      id: 'killer-wave',
+      enemies: [
+        { enemyId: 'killer', count: 1 },
+        { enemyId: 'harmless', count: 2 },
+      ],
+    };
+    const stage: StageDef = {
+      id: 'killer-stage',
+      name: 'Killer Stage',
+      waves: ['killer-wave'],
+      boss: 'goblin-chief',
+      bossXpBonus: 0,
+    };
+    const customContent = makeCustomContent({
+      enemies: [lethalEnemy, harmlessEnemy],
+      waves: [wave],
+      stages: [stage],
+    });
+
+    let state = createInitialState(1, defaultConfig);
+    state = { ...state, unlockedStages: [...state.unlockedStages, 'killer-stage'] };
+    state = startCombat(state, 'killer-stage', { ...defaultConfig, content: customContent });
+
+    // Advance time to let the first enemy attack
+    for (let i = 0; i < 2; i++) {
+      state = stepCombat(state, 0.1, { ...defaultConfig, content: customContent });
+    }
+
+    // Player should be dead
+    expect(state.combat!.playerDefeated).toBe(true);
+    expect(state.combat!.playerHp).toBe(0);
+
+    // All three enemies should still be alive (loop stopped after first enemy killed player)
+    expect(state.combat!.enemies.length).toBe(3);
   });
 });
