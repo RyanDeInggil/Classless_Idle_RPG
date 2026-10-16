@@ -7,7 +7,7 @@
  */
 
 import type { GameConfig } from '../core/types.js';
-import { characterStats, STARTING_LEVEL } from './character.js';
+import { characterStats } from './character.js';
 import { levelCurve } from './levelCurve.js';
 import { content } from './content/index.js';
 
@@ -26,5 +26,3 @@ export const defaultConfig: GameConfig = {
   character: characterStats,
   levelCurve,
 };
-
-export { STARTING_LEVEL };

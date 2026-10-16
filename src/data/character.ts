@@ -48,6 +48,8 @@ export const characterStatsSchema = z.object({
   growthPerLevel: growthRatesSchema,
   /** Player on-hit effects in Phase 1 (fed from skill tree in Phase 2). */
   baseOnHitEffects: z.array(z.string()).default(['burn']),
+  /** Level at which a new character starts. */
+  startingLevel: z.number().int().positive().default(1),
 });
 
 export type BaseStats = z.infer<typeof baseStatsSchema>;
@@ -70,10 +72,8 @@ export const characterStats: CharacterStatsData = characterStatsSchema.parse({
     critDamage: 1.01,
   },
   baseOnHitEffects: ['burn'],
+  startingLevel: 1,
 });
 
 /** Player on-hit effects configured for Phase 1. */
 export const playerBaseOnHitEffects: readonly string[] = characterStats.baseOnHitEffects;
-
-/** Level at which a new character starts. */
-export const STARTING_LEVEL = 1;

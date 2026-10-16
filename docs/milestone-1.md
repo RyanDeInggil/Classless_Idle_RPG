@@ -9,7 +9,7 @@ Scope reference: SRS section 6, Phase 1. Decisions: `docs/decisions.md`.
 ### Foundation
 - [x] **M1-01 Scaffold.** Vite + TypeScript + Svelte + Vitest + Zod. Folders per `CLAUDE.md`. Scripts: dev, test, typecheck, build.
 - [x] **M1-02 Core primitives.** `core/num.ts` (add, mul, cmp, clamp), `core/rng.ts` (seeded PRNG, serializable state), `core/types.ts` (GameState, Action).
-- [x] **M1-03 Game state + step runner.** `createInitialState(seed)`, `advance(state, seconds)` with 0.1 s fixed step, remainder carry, 10 s cap. Tests: same input gives same output; splitting seconds (1x10 vs 100x0.1) gives identical results.
+- [x] **M1-03 Game state + step runner.** `createInitialState(seed, config)`, `advance(state, seconds, config)` with 0.1 s fixed step, remainder carry, 10 s cap. Tests: same input gives same output; splitting seconds (1x10 vs 100x0.1) gives identical results.
 
 ### Character
 - [x] **M1-04 Stats.** Base stats (maxHp, attack, attackRate, critChance, critDamage). `deriveStats(state)` recalculated, not saved. Tests.
@@ -24,7 +24,7 @@ Scope reference: SRS section 6, Phase 1. Decisions: `docs/decisions.md`.
 - [ ] **M1-11 Rewards.** XP per enemy, boss bonus XP, results log capped at N entries (NFR-009).
 
 ### Activities and persistence
-- [ ] **M1-12 Activity framework.** `Activity` interface (`id`, `requirements`, `advance`, outputs). Combat is the first implementation. `dispatch({type:'startActivity'|'stopActivity'})`. Single active activity.
+- [ ] **M1-12 Activity framework.** `Activity` interface (`id`, `requirements`, `advance`, outputs). Combat is the first implementation. `dispatch({type:'startActivity'|'stopActivity'}, config)`. Single active activity.
 - [ ] **M1-13 Persistence.** Zod save schema with `version: 1`, `savedAt`. Autosave every 10 s and on tab hide. Load validates first; on failure show an error and offer reset without overwriting the bad save. Migration function scaffold (v1 identity). Tests: round trip, malformed, wrong version.
 
 ### UI

@@ -2,7 +2,7 @@ import { describe, it, expect, vi } from 'vitest';
 import { defaultConfig } from '../helpers/config.js';
 import { deriveStats, deriveStatsForLevel } from '../../src/core/stats.js';
 import { createInitialState } from '../../src/core/engine.js';
-import { characterStats, STARTING_LEVEL } from '../../src/data/character.js';
+import { characterStats } from '../../src/data/character.js';
 import type { GameState } from '../../src/core/types.js';
 
 /** Expected value from the documented growth model: base * growth^(level - 1). */
@@ -144,7 +144,7 @@ describe('deriveStats', () => {
 
   it('starts a new character at full health', () => {
     const state = createInitialState(1, defaultConfig);
-    expect(state.character.level).toBe(STARTING_LEVEL);
+    expect(state.character.level).toBe(characterStats.startingLevel);
     expect(state.character.currentHp).toBe(deriveStats(state, defaultConfig).maxHp);
   });
 });

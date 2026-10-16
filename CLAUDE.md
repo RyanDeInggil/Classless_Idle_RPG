@@ -8,6 +8,7 @@ TypeScript, Vite, Svelte, Vitest, Zod, localStorage. No backend, no game engine,
 ## Layout
 ```
 src/core/         pure logic. NO imports from ui/, persistence/, DOM, window, localStorage, Date.now
+                  Core may only `import type` from src/data (never value imports).
 src/data/         content definitions (stages, enemies, effects, activities, level curve)
 src/persistence/  save, load, validate (Zod), migrate
 src/ui/           Svelte components. Reads state, dispatches actions. No game rules.
@@ -15,7 +16,7 @@ tests/            Vitest, mirrors src/core
 ```
 
 ## Hard rules
-1. Core is a pure function: `advance(state, seconds) -> state` and `dispatch(state, action) -> state`. Never mutate the input state.
+1. Core is a pure function: `advance(state, seconds, config) -> state` and `dispatch(state, action, config) -> state`. Never mutate the input state.
 2. Time-driven, never frame-driven. Core uses a fixed internal step (see decisions.md) so results do not depend on render rate.
 3. Randomness comes from a seeded PRNG stored in state. Never call `Math.random()` in core.
 4. All content is data, validated with Zod at load. Adding an enemy or stage must not touch core code.

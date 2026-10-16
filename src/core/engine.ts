@@ -33,8 +33,8 @@ export const MAX_STEPS = 100;    // 10 s cap per advance() call
 export function createInitialState(
   seed: number,
   config: GameConfig,
-  startingLevel: number = 1,
 ): GameState {
+  const startingLevel = config.character.startingLevel;
   return {
     version: 1,
     rng: { seed: seed >>> 0 },

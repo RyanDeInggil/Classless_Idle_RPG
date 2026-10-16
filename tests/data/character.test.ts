@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { characterStats, characterStatsSchema, STARTING_LEVEL } from '../../src/data/character.js';
+import { characterStats, characterStatsSchema } from '../../src/data/character.js';
 
 const valid = {
   base: { maxHp: 100, attack: 10, attackRate: 1, critChance: 0.05, critDamage: 1.5 },
@@ -14,7 +14,7 @@ describe('character stats data', () => {
     expect(characterStats.base.critChance).toBeGreaterThanOrEqual(0);
     expect(characterStats.base.critChance).toBeLessThanOrEqual(1);
     expect(characterStats.base.critDamage).toBeGreaterThanOrEqual(1);
-    expect(STARTING_LEVEL).toBe(1);
+    expect(characterStats.startingLevel).toBe(1);
   });
 
   it('accepts a growth factor above 1 for crit chance', () => {
