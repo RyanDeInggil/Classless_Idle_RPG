@@ -305,4 +305,21 @@ describe('Content loading and cross-reference validation (M1-06)', () => {
       expect(valErr.message).toContain('ghost-stage-1');
     }
   });
+
+  // -------------------------------------------------------------------------
+  // 5. Required fields (Task B)
+  // -------------------------------------------------------------------------
+  it('fails when content is missing startingStageId', () => {
+    const bad = cloneStarter();
+    // @ts-expect-error removing required field
+    delete bad.startingStageId;
+    expect(() => loadContent(bad)).toThrow();
+  });
+
+  it('fails when content is missing playerBaseOnHitEffects', () => {
+    const bad = cloneStarter();
+    // @ts-expect-error removing required field
+    delete bad.playerBaseOnHitEffects;
+    expect(() => loadContent(bad)).toThrow();
+  });
 });

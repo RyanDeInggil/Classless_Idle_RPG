@@ -104,8 +104,8 @@ export const rawContentSchema = z
     enemies: z.array(enemyDefSchema),
     waves: z.array(waveDefSchema),
     stages: z.array(stageDefSchema),
-    playerBaseOnHitEffects: z.array(z.string().min(1)).default(['burn']),
-    startingStageId: z.string().min(1).default('stage-1'),
+    playerBaseOnHitEffects: z.array(z.string().min(1)),
+    startingStageId: z.string().min(1),
   })
   .strict();
 
