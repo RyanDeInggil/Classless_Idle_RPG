@@ -19,6 +19,7 @@ import type {
   StunEffectDef,
   WaveDef,
 } from '../../src/data/index.js';
+import type { GameConfig } from '../../src/core/types.js';
 import { content as defaultContent } from '../../src/data/index.js';
 
 function makeCustomContent(overrides: {
@@ -451,17 +452,85 @@ describe('Timed Effects System (M1-08)', () => {
   // 9. Time splitting invariance with effects active
   // -------------------------------------------------------------------------
   it('time splitting invariance with effects active: advance(s, 10, defaultConfig) === 100 x advance(s, 0.1, defaultConfig)', () => {
-    let stateSingle = createInitialState(101, defaultConfig);
-    stateSingle = dispatch(stateSingle, { type: 'startCombat', stageId: 'stage-1' }, defaultConfig);
+    // Build start state by hand: player with active stun, enemies with active burn, on a non-final wave
+    const weakEnemy: EnemyDef = {
+      id: 'time-split-enemy',
+      name: 'Time Split Enemy',
+      maxHp: 100,
+      damage: 2,
+      attackInterval: 1.0,
+      xpReward: 10,
+      isBoss: false,
+      onHitEffects: [],
+    };
+    const wave1: WaveDef = { id: 'ts-w1', enemies: [{ enemyId: 'time-split-enemy', count: 2 }] };
+    const wave2: WaveDef = { id: 'ts-w2', enemies: [{ enemyId: 'time-split-enemy', count: 1 }] };
+    const stage: StageDef = {
+      id: 'time-split-stage',
+      name: 'Time Split Stage',
+      waves: ['ts-w1', 'ts-w2'],
+      boss: 'goblin-chief',
+      bossXpBonus: 0,
+    };
+    const customContent: Content = {
+      effects: defaultConfig.content.effects,
+      enemies: new Map([...defaultConfig.content.enemies, [weakEnemy.id, weakEnemy]]),
+      waves: new Map([[wave1.id, wave1], [wave2.id, wave2]]),
+      stages: new Map([[stage.id, stage]]),
+      playerBaseOnHitEffects: defaultConfig.content.playerBaseOnHitEffects,
+      startingStageId: defaultConfig.content.startingStageId,
+      raw: defaultConfig.content.raw,
+    };
+    const config: GameConfig = { ...defaultConfig, content: customContent };
 
-    let stateSplit = createInitialState(101, defaultConfig);
-    stateSplit = dispatch(stateSplit, { type: 'startCombat', stageId: 'stage-1' }, defaultConfig);
+    let stateSingle = createInitialState(101, config);
+    stateSingle = { ...stateSingle, unlockedStages: [...stateSingle.unlockedStages, 'time-split-stage'] };
+    stateSingle = dispatch(stateSingle, { type: 'startCombat', stageId: 'time-split-stage' }, config);
 
-    const single = advance(stateSingle, 10, defaultConfig);
+    // Set up player with active stun (remainingMs = 5000, plenty of time) and enemies with active burn
+    stateSingle = {
+      ...stateSingle,
+      combat: {
+        ...stateSingle.combat!,
+        playerEffects: [
+          {
+            effectId: 'stun',
+            remainingMs: 5000,
+            tickTimerMs: 0,
+            stacks: 1,
+          },
+        ],
+        enemies: stateSingle.combat!.enemies.map((e) => ({
+          ...e,
+          effects: [
+            {
+              effectId: 'burn',
+              remainingMs: 15000,
+              tickTimerMs: 500,
+              stacks: 1,
+            },
+          ],
+        })),
+      },
+    };
+
+    let stateSplit = JSON.parse(JSON.stringify(stateSingle)); // Deep clone
+
+    // Assert effects really run
+    const singleAfter1 = advance(stateSingle, 1.0, config);
+    // Burn should have ticked at least once (dealing 3 damage per tick)
+    expect(singleAfter1.combat!.enemies[0].hp).toBeLessThan(100);
+    // Player should still be stunned (5000ms - 1000ms = 4000ms remaining), so attack timer should be frozen at 0
+    expect(singleAfter1.combat!.playerAttackTimerMs).toBe(0);
+    expect(singleAfter1.combat!.playerEffects[0].effectId).toBe('stun');
+    expect(singleAfter1.combat!.playerEffects[0].remainingMs).toBe(4000);
+
+    // Now compare advance(s, 10) with 100 x advance(s, 0.1)
+    const single = advance(stateSingle, 10, config);
 
     let split = stateSplit;
     for (let i = 0; i < 100; i++) {
-      split = advance(split, 0.1, defaultConfig);
+      split = advance(split, 0.1, config);
     }
 
     expect(single).toEqual(split);
