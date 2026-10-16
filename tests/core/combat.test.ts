@@ -928,5 +928,333 @@ describe('Combat Engine (M1-07)', () => {
 
       expect(parsed).toEqual(richState);
     });
+
+    // Fix 1: D14 tie on non-final wave tests
+    describe('Fix 1: D14 tie on non-final wave', () => {
+      it('non-final wave cleared by DoT in same step player DoT is lethal: player survives at 1 HP, next wave spawned', () => {
+        const enemy: EnemyDef = {
+          id: 'tie-nonfinal-dot',
+          name: 'Tie Enemy',
+          maxHp: 20,
+          damage: 0,
+          attackInterval: 10.0,
+          xpReward: 10,
+          isBoss: false,
+          onHitEffects: [],
+        };
+        const wave1: WaveDef = { id: 'nf-w1', enemies: [{ enemyId: 'tie-nonfinal-dot', count: 1 }] };
+        const wave2: WaveDef = { id: 'nf-w2', enemies: [{ enemyId: 'tie-nonfinal-dot', count: 1 }] };
+        const stage: StageDef = {
+          id: 'nonfinal-tie-stage',
+          name: 'Non-Final Tie Stage',
+          waves: ['nf-w1', 'nf-w2'],
+          boss: 'goblin-chief',
+          bossXpBonus: 0,
+        };
+        const customContent = makeCustomContent({
+          enemies: [enemy],
+          waves: [wave1, wave2],
+          stages: [stage],
+        });
+
+        let state = createInitialState(1, defaultConfig);
+        state = { ...state, unlockedStages: [...state.unlockedStages, 'nonfinal-tie-stage'] };
+        state = startCombat(state, 'nonfinal-tie-stage', { ...defaultConfig, content: customContent });
+
+        // Player has 2 HP and lethal DoT (burn deals 3)
+        // Enemy has 2 HP and lethal DoT (burn deals 3)
+        // This is wave 0 (non-final)
+        state = {
+          ...state,
+          combat: {
+            ...state.combat!,
+            playerHp: 2,
+            playerEffects: [
+              {
+                effectId: 'burn',
+                remainingMs: 3000,
+                tickTimerMs: 1000,
+                stacks: 1,
+              },
+            ],
+            enemies: [
+              {
+                ...state.combat!.enemies[0],
+                hp: 2,
+                effects: [
+                  {
+                    effectId: 'burn',
+                    remainingMs: 3000,
+                    tickTimerMs: 1000,
+                    stacks: 1,
+                  },
+                ],
+              },
+            ],
+          },
+        };
+
+        state = stepCombat(state, 0.1, { ...defaultConfig, content: customContent });
+
+        // D14: Player wins tie, survives with 1 HP
+        expect(state.combat!.playerHp).toBe(1);
+        expect(state.combat!.playerDefeated).toBe(false);
+        // Wave advanced to wave 1 (next wave spawned)
+        expect(state.combat!.waveIndex).toBe(1);
+        expect(state.combat!.enemies.length).toBe(1);
+        expect(state.combat!.bossPending).toBe(false);
+      });
+
+      it('non-final wave cleared by player attack in same step player DoT is lethal: player survives at 1 HP', () => {
+        const enemy: EnemyDef = {
+          id: 'tie-nonfinal-attack',
+          name: 'Tie Enemy',
+          maxHp: 20,
+          damage: 0,
+          attackInterval: 10.0,
+          xpReward: 10,
+          isBoss: false,
+          onHitEffects: [],
+        };
+        const wave1: WaveDef = { id: 'nf-a-w1', enemies: [{ enemyId: 'tie-nonfinal-attack', count: 1 }] };
+        const wave2: WaveDef = { id: 'nf-a-w2', enemies: [{ enemyId: 'tie-nonfinal-attack', count: 1 }] };
+        const stage: StageDef = {
+          id: 'nonfinal-tie-attack-stage',
+          name: 'Non-Final Tie Attack Stage',
+          waves: ['nf-a-w1', 'nf-a-w2'],
+          boss: 'goblin-chief',
+          bossXpBonus: 0,
+        };
+        const customContent = makeCustomContent({
+          enemies: [enemy],
+          waves: [wave1, wave2],
+          stages: [stage],
+        });
+
+        let state = createInitialState(1, defaultConfig);
+        state = { ...state, unlockedStages: [...state.unlockedStages, 'nonfinal-tie-attack-stage'] };
+        state = startCombat(state, 'nonfinal-tie-attack-stage', { ...defaultConfig, content: customContent });
+
+        // Player has 2 HP and lethal DoT (3 damage)
+        // Enemy has 10 HP, no DoT
+        // Player attack timer is ready (1000 ms, deals 10 damage, kills enemy)
+        state = {
+          ...state,
+          combat: {
+            ...state.combat!,
+            playerHp: 2,
+            playerAttackTimerMs: 1000,
+            playerEffects: [
+              {
+                effectId: 'burn',
+                remainingMs: 3000,
+                tickTimerMs: 1000,
+                stacks: 1,
+              },
+            ],
+            enemies: [
+              {
+                ...state.combat!.enemies[0],
+                hp: 10,
+                effects: [],
+              },
+            ],
+          },
+        };
+
+        state = stepCombat(state, 0.1, { ...defaultConfig, content: customContent });
+
+        // D14: Player wins tie, survives with 1 HP
+        expect(state.combat!.playerHp).toBe(1);
+        expect(state.combat!.playerDefeated).toBe(false);
+        // Wave advanced to wave 1
+        expect(state.combat!.waveIndex).toBe(1);
+        expect(state.combat!.enemies.length).toBe(1);
+        expect(state.combat!.bossPending).toBe(false);
+      });
+
+      it('regression: final wave tie still gives bossPending and 1 HP (DoT case)', () => {
+        const enemy: EnemyDef = {
+          id: 'tie-final-dot',
+          name: 'Tie Enemy',
+          maxHp: 20,
+          damage: 0,
+          attackInterval: 10.0,
+          xpReward: 10,
+          isBoss: false,
+          onHitEffects: [],
+        };
+        const wave1: WaveDef = { id: 'f-w1', enemies: [{ enemyId: 'tie-final-dot', count: 1 }] };
+        const stage: StageDef = {
+          id: 'final-tie-stage',
+          name: 'Final Tie Stage',
+          waves: ['f-w1'],
+          boss: 'goblin-chief',
+          bossXpBonus: 0,
+        };
+        const customContent = makeCustomContent({
+          enemies: [enemy],
+          waves: [wave1],
+          stages: [stage],
+        });
+
+        let state = createInitialState(1, defaultConfig);
+        state = { ...state, unlockedStages: [...state.unlockedStages, 'final-tie-stage'] };
+        state = startCombat(state, 'final-tie-stage', { ...defaultConfig, content: customContent });
+
+        state = {
+          ...state,
+          combat: {
+            ...state.combat!,
+            playerHp: 2,
+            playerEffects: [
+              {
+                effectId: 'burn',
+                remainingMs: 3000,
+                tickTimerMs: 1000,
+                stacks: 1,
+              },
+            ],
+            enemies: [
+              {
+                ...state.combat!.enemies[0],
+                hp: 2,
+                effects: [
+                  {
+                    effectId: 'burn',
+                    remainingMs: 3000,
+                    tickTimerMs: 1000,
+                    stacks: 1,
+                  },
+                ],
+              },
+            ],
+          },
+        };
+
+        state = stepCombat(state, 0.1, { ...defaultConfig, content: customContent });
+
+        // Regression: D14 still works on final wave
+        expect(state.combat!.playerHp).toBe(1);
+        expect(state.combat!.playerDefeated).toBe(false);
+        expect(state.combat!.bossPending).toBe(true);
+      });
+
+      it('regression: final wave tie still gives bossPending and 1 HP (attack case)', () => {
+        const enemy: EnemyDef = {
+          id: 'tie-final-attack',
+          name: 'Tie Enemy',
+          maxHp: 20,
+          damage: 0,
+          attackInterval: 10.0,
+          xpReward: 10,
+          isBoss: false,
+          onHitEffects: [],
+        };
+        const wave1: WaveDef = { id: 'f-a-w1', enemies: [{ enemyId: 'tie-final-attack', count: 1 }] };
+        const stage: StageDef = {
+          id: 'final-tie-attack-stage',
+          name: 'Final Tie Attack Stage',
+          waves: ['f-a-w1'],
+          boss: 'goblin-chief',
+          bossXpBonus: 0,
+        };
+        const customContent = makeCustomContent({
+          enemies: [enemy],
+          waves: [wave1],
+          stages: [stage],
+        });
+
+        let state = createInitialState(1, defaultConfig);
+        state = { ...state, unlockedStages: [...state.unlockedStages, 'final-tie-attack-stage'] };
+        state = startCombat(state, 'final-tie-attack-stage', { ...defaultConfig, content: customContent });
+
+        state = {
+          ...state,
+          combat: {
+            ...state.combat!,
+            playerHp: 2,
+            playerAttackTimerMs: 1000,
+            playerEffects: [
+              {
+                effectId: 'burn',
+                remainingMs: 3000,
+                tickTimerMs: 1000,
+                stacks: 1,
+              },
+            ],
+            enemies: [
+              {
+                ...state.combat!.enemies[0],
+                hp: 10,
+                effects: [],
+              },
+            ],
+          },
+        };
+
+        state = stepCombat(state, 0.1, { ...defaultConfig, content: customContent });
+
+        // Regression: D14 still works on final wave with attack
+        expect(state.combat!.playerHp).toBe(1);
+        expect(state.combat!.playerDefeated).toBe(false);
+        expect(state.combat!.bossPending).toBe(true);
+      });
+
+      it('regression: lethal DoT with enemies still alive after step defeats player', () => {
+        const enemy: EnemyDef = {
+          id: 'surviving-enemy',
+          name: 'Survivor',
+          maxHp: 100,
+          damage: 0,
+          attackInterval: 10.0,
+          xpReward: 10,
+          isBoss: false,
+          onHitEffects: [],
+        };
+        const wave1: WaveDef = { id: 'surv-w1', enemies: [{ enemyId: 'surviving-enemy', count: 2 }] };
+        const stage: StageDef = {
+          id: 'no-tie-stage',
+          name: 'No Tie Stage',
+          waves: ['surv-w1'],
+          boss: 'goblin-chief',
+          bossXpBonus: 0,
+        };
+        const customContent = makeCustomContent({
+          enemies: [enemy],
+          waves: [wave1],
+          stages: [stage],
+        });
+
+        let state = createInitialState(1, defaultConfig);
+        state = { ...state, unlockedStages: [...state.unlockedStages, 'no-tie-stage'] };
+        state = startCombat(state, 'no-tie-stage', { ...defaultConfig, content: customContent });
+
+        // Player has 2 HP and lethal DoT
+        // Two enemies alive, neither will die
+        state = {
+          ...state,
+          combat: {
+            ...state.combat!,
+            playerHp: 2,
+            playerEffects: [
+              {
+                effectId: 'burn',
+                remainingMs: 3000,
+                tickTimerMs: 1000,
+                stacks: 1,
+              },
+            ],
+          },
+        };
+
+        state = stepCombat(state, 0.1, { ...defaultConfig, content: customContent });
+
+        // No tie: player is defeated
+        expect(state.combat!.playerHp).toBe(0);
+        expect(state.combat!.playerDefeated).toBe(true);
+        expect(state.combat!.enemies.length).toBe(2);
+      });
+    });
   });
 });

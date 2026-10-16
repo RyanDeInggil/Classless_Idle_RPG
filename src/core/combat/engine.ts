@@ -188,6 +188,7 @@ export function stepCombat(
   let playerDefeated: boolean = false;
   let phase: CombatPhase = combat.phase;
   const hadEnemiesAtStart = currentEnemies.length > 0;
+  let waveClearedThisStep: boolean = false;
 
   // -------------------------------------------------------------------------
   // 0. Tick Active Effects (DoT & Expired Duration)
@@ -225,6 +226,7 @@ export function stepCombat(
 
   // Check wave advancement if DoT cleared the wave
   if (currentEnemies.length === 0 && hadEnemiesAtStart) {
+    waveClearedThisStep = true;
     const stage = contentInstance.stages.get(combat.stageId);
     if (stage) {
       const nextWaveIndex = add(waveIndex, 1);
@@ -247,9 +249,8 @@ export function stepCombat(
     playerHp = clamp(sub(playerHp, playerTickResult.totalDamage), 0, maxHp);
 
     if (playerHp <= 0) {
-      // D14: If the player and the last enemy would both die in the same step, the player wins.
-      const enemiesClearedThisStep = hadEnemiesAtStart && (bossPending || (currentEnemies.length === 0));
-      if (enemiesClearedThisStep) {
+      // D14: If the player and the last enemy of the current wave would both die in the same step, the player wins.
+      if (waveClearedThisStep) {
         playerHp = 1; // Player survives tie with 1 HP (DoT-death tie)
       } else {
         // Player took lethal DoT, but may still attack and clear wave in this step (direct-attack tie)
@@ -324,6 +325,7 @@ export function stepCombat(
 
       // Check wave advancement after player attacks
       if (currentEnemies.length === 0) {
+        waveClearedThisStep = true;
         const stage = contentInstance.stages.get(combat.stageId);
         if (stage) {
           const nextWaveIndex = add(waveIndex, 1);
@@ -343,8 +345,7 @@ export function stepCombat(
 
   // If player took lethal DoT, resolve D14 tie or defeat after player's attack cycle
   if (playerLethalDoT) {
-    const enemiesClearedThisStep = hadEnemiesAtStart && (bossPending || (currentEnemies.length === 0));
-    if (enemiesClearedThisStep) {
+    if (waveClearedThisStep) {
       playerHp = 1; // Player survives tie with 1 HP (direct-attack tie)
     } else {
       playerHp = 0;
